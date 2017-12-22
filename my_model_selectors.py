@@ -76,8 +76,31 @@ class SelectorBIC(ModelSelector):
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        # DONE implement model selection based on BIC scores
+
+        # init it bic scores array, filled on the loop
+        bic_scores = []
+        # sum of it lengths (outside of the loop to improve it perform)
+        sum_data_points = sum(self.lengths)
+
+        # BIC score for n between self.min_n_components and self.max_n_components
+        for num_states in range(self.min_n_components, self.max_n_components):
+            try:
+                # Hidden Markov Model
+                hmm_model = self.base_model(num_states)
+                # logarithm log_likelihood HMM score
+                log_likelihood = hmm_model.score(self.X, self.lengths)
+                # calc the probability p
+                p = (num_states ** 2) + (2 * num_states * sum_data_points) - 1
+                # Bayesian information criteria: BIC = -2 * logL + p * logN
+                bic_score = (-2 * log_likelihood) + (p * np.log(sum_data_points))
+                # add it current bic_score to the bic_scores list
+                bic_scores.append(tuple([bic_score, hmm_model]))
+            except:
+                pass
+
+        # get it min bic_score from bic_scores comparing it first "dictionary" param as the num value
+        return min(bic_scores, key = lambda x: x[0])[1] if bic_scores else None
 
 
 class SelectorDIC(ModelSelector):
