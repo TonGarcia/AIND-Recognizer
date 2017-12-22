@@ -90,7 +90,7 @@ class SelectorBIC(ModelSelector):
                 hmm_model = self.base_model(num_states)
                 # logarithm log_likelihood HMM score
                 log_likelihood = hmm_model.score(self.X, self.lengths)
-                # calc the probability p
+                # calc the probability p, which means: (num_states^2) + (2 * num_states * sum_points) - zeros
                 p = (num_states ** 2) + (2 * num_states * sum_data_points) - 1
                 # Bayesian information criteria: BIC = -2 * logL + p * logN
                 bic_score = (-2 * log_likelihood) + (p * np.log(sum_data_points))
@@ -128,5 +128,52 @@ class SelectorCV(ModelSelector):
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        # DONE implement model selection using CV
+
+        # init empty objects
+        hmm_model = None
+        log_likelihood = None
+
+        # init empty lists
+        cv_scores = []
+        log_likelihoods = []
+
+        # SKLearn KFold: Provides train/test indices to split data in train/test sets.
+        # Split dataset into k consecutive folds (without shuffling by default)
+        kf = KFold(n_splits=3, shuffle=False, random_state=None)
+
+        # iterate the n components (min & max)
+        for num_states in range(self.min_n_components, self.max_n_components):
+            try:
+                # Check if there is sufficient data to split using KFold
+                if len(self.sequences) > 2:
+                    # CV loop on training set sequence, for each "folds"
+                    # each fold rotated out of the training set is tested by scoring for Cross-Validation (CV)
+                    for train_index, test_index in kf.split(self.sequences):
+                        # KFold recombining Training sequences split
+                        self.X, self.lengths = combine_sequences(train_index, self.sequences)
+                        # KFold recombining Testing sequences split
+                        X_test, lengths_test = combine_sequences(test_index, self.sequences)
+
+                        # Hidden Markov Model
+                        hmm_model = self.base_model(num_states)
+                        # Calc it log_likelihood logarithm HMM score
+                        log_likelihood = hmm_model.score(X_test, lengths_test)
+
+                # No sufficient data to split using KFold
+                else:
+                    # Just create the Hidden Markov Model & calc it logarithm HMM score
+                    hmm_model = self.base_model(num_states)
+                    log_likelihood = hmm_model.score(self.X, self.lengths)
+
+                log_likelihoods.append(log_likelihood)
+
+                # Find average Log Likelihood of CV fold
+                cv_score_avg = np.mean(log_likelihoods)
+                cv_scores.append(tuple([cv_score_avg, hmm_model]))
+
+            except Exception as e:
+                pass
+
+        # The CV use the max score as the best choice
+        return max(cv_scores, key = lambda x: x[0])[1] if cv_scores else None
