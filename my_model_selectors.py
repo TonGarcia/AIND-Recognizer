@@ -111,8 +111,41 @@ class SelectorDIC(ModelSelector):
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        # DONE implement model selection based on DIC scores
+
+        # Init empty lists
+        models = []
+        dic_scores = []
+        remain_words = []
+
+        # Create a new words list (other_words), removing the current word (self.this_word)
+        for word in self.words:
+            if word != self.this_word:
+                remain_words.append(self.hwords[word])
+
+        # Try to calc. the models iterating the states
+        try:
+            for num_states in range(self.min_n_components, self.max_n_components + 1):
+                hmm_model = self.base_model(num_states)
+                log_likelihood_original_word = hmm_model.score(self.X, self.lengths)
+                models.append((log_likelihood_original_word, hmm_model))
+        # Cause Exception if have more params to fit
+        # so must catch exception when the model is invalid
+        except Exception as e:
+            pass
+
+        # Calc the DIC Scores based on the built models above
+        for index, model in enumerate(models):
+            # current iteration vars
+            log_likelihood_original_word, hmm_model = model
+            # calc the log for remain words
+            log_likelihood_remain_words = np.mean([model[1].score(word[0], word[1]) for word in remain_words])
+            # current dic score is the diff between original word & the remain words logs
+            dic_score = log_likelihood_original_word - log_likelihood_remain_words
+            dic_scores.append(tuple([dic_score, model[1]]))
+
+        # The model is better as greater it DIC score is
+        return max(dic_scores, key=lambda x: x[0])[1] if dic_scores else None
 
 
 class SelectorCV(ModelSelector):
